@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: server-monitor
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: server-monitor
+  template:
+    metadata:
+      labels:
+        app: server-monitor
+    spec:
+      containers:
+      - name: server-monitor
+        image: server-monitor:v2
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 5000
+
+        volumeMounts:
+        - name: ssh-key
+          mountPath: /home/hoangan1606/.ssh
+          readOnly: true
+      volumes:
+      - name: ssh-key
+        hostPath:
+          path: /home/hoangan1606/.ssh
+

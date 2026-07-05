@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4 text-center">
+    Server Monitor Dashboard
+</h1>
+
+<div class="row">
+{% for server in servers %}
+<div class="col-md-6">
+<div class="card shadow mb-4"
+     data-index="{{ loop.index0 }}">
+<div class="card-header">
+
+<h4>{{ server.name }}</h4>
+
+</div>
+
+<label><strong>CPU</strong></label>
+<div class="progress mb-3">
+<div
+id="cpu-bar{{loop.index0}}"
+class="progress-bar"
+role="progressbar"
+style="width: {{server.cpu}}%;">
+<span id="cpu{{loop.index0}}">
+{{server.cpu}}
+</span> %
+</div>
+</div>
+
+
+<label><strong>RAM</strong></label>
+<div class="progress mb-3">
+<div
+id="ram-bar{{loop.index0}}"
+class="progress-bar bg-success"
+style="width: {{server.ram}}%;">
+<span id="ram{{loop.index0}}">
+{{ server.ram }}
+</span> %
+</div>
+</div>
+
+
+<label><strong>Disk</strong></label>
+<div class="progress mb-3">
+<div
+id="disk-bar{{loop.index0}}"
+class="progress-bar bg-warning"
+style="width: {{server.disk}}%;">
+<span id="disk{{loop.index0}}">
+{{ server.disk }}
+</span> %
+</div>
+</div>
+
+
+<p>
+<strong>Service :</strong>
+<span
+id="service{{loop.index0}}"
+class="badge bg-success">
+{{ server.service }}
+</span>
+</p>
+
+</div>
+</div>
+</div>
+
+{% endfor %}
+
+</div>
+
+{% endblock %}
+

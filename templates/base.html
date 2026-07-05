@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Server Monitor</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+<body class="bg-light">
+<div class="container mt-5">
+
+{% block content %}
+{% endblock %}
+</div>
+
+<script>
+async function refreshDashboard(){
+    const response = await fetch("/api/status");
+    const data = await response.json();
+    data.forEach((server,index)=>{
+        document.getElementById("cpu" + index).innerHTML = server.cpu;
+        document.getElementById("ram" + index).innerHTML = server.ram;
+        document.getElementById("disk" + index).innerHTML = server.disk;
+
+        document.getElementById("cpu-bar" + index).style.width = server.cpu+"%";
+        document.getElementById("ram-bar" + index).style.width = server.ram+"%";
+        document.getElementById("disk-bar" + index).style.width = server.disk"%";
+
+        document.getElementById("service" + index).innerHTML = server.service;
+    });
+}
+refreshDashboard();
+setInterval(refreshDashboard, 5000);
+</script>
+
+</body>
+</html>
+
+
+

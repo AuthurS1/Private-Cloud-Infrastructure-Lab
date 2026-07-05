@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  server-monitor:
+    image: server-monitor:v2
+    container_name: server-monitor
+
+    restart: unless-stopped
+
+    ports:
+      - "5000:5000"
+    volumes:
+      - /home/hoangan1606/.ssh:/home/hoangan1606/.ssh:ro
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - server-monitor
+    restart: unless-stopped
