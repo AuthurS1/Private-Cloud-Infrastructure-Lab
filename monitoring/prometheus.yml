@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager: 9093"
+rule_files:
+  - "alert.rule.yml"
+scrape_configs:
+  - job_name: management01
+    static_configs:
+    - targets:
+        - "192.168.122.149:9100"
+  - job_name: hypervisor
+    static_configs:
+    - targets:
+        - 192.168.137.130:9100
+
