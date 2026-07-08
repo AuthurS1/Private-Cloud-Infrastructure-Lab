@@ -13,3 +13,18 @@ postgresql_database_encoding: UTF8
 postgresql_app_user: server_monitor_app
 postgresql_app_password: "{{ vault_postgresql_app_password }}"
 
+# PostgreSQL network configuration
+postgresql_server_ip: "192.168.122.223"
+postgresql_port: "5432"
+
+# Only management01 may access the application database remotely
+postgresql_allowed_client_ip: "192.168.122.149/32"
+
+# PostgreSQL should listen locally and on the database VM interface
+postgresql_listen_address: "localhost, 192.168.122.223"
+postgresql_hba_auth_method: "scram-sha-256"
+
+# Firewall configuration
+postgresql_ssh_allowed_network: "192.168.122.0/24"
+postgresql_manage_firewall: true
+

@@ -50,5 +50,105 @@
   changed_when: false
 - name: Display PostgreSQL database information
   ansible.builtin.debug:
-    var: postgresql_database_check,query_result
+    var: postgresql_database_check.query_result
+
+# --------------------------------------------------
+#     PostgreSQL remote access configuration
+# --------------------------------------------------
+
+- name: Get PostgreSQL HBA configuration path
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: "SHOW hba_file;"
+  register: postgresql_hba_query
+  changed_when: false
+- name: Save PostgreSQL HBA configuration path
+  ansible.builtin.set_fact:
+    postgresql_hba_file: "{{ postgresql_hba_query.query_result[0].hba_file }}"
+- name: Configure PostgreSQL listen address
+  become_user: postgres
+  community.postgresql.postgresql_alter_system:
+    param: listen_addresses
+    value: "{{ postgresql_listen_address }}"
+  register: postgresql_listen_result
+  notify: Restart PostgreSQL
+- name: Allow management01 to access application database
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_database_name }}"
+    users: "{{ postgresql_app_user }}"
+    source: "{{ postgresql_allowed_client_ip }}"
+    method: "{{ postgresql_hba_auth_method }}"
+    state: present
+    backup: true
+    comment: "Managed by Ansible - management01 application access"
+  notify: Restart PostgreSQL
+- name: Validate PostgreSQL HBA configuration
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT line_number, error
+      FROM pg_hba_file_rules
+      WHERE error IS NOT NULL;
+  register: postgresql_hba_validation
+  changed_when: false
+- name: Ensure PostgreSQL HBA configuration has no errors
+  ansible.builtin.assert:
+    that:
+      - postgresql_hba_validation.query_result | length == 0
+    fail_msg: "Invalid PostgreSQL pg_hba.conf configuration detected."
+    success_msg: "PostgreSQL pg_hba.conf validation passed."
+- name: Apply PostgreSQL restart before firewall configuration
+  ansible.builtin.meta: flush_handlers
+- name: Wait for PostgreSQL on database network interface
+  ansible.builtin.wait_for:
+    host: "{{ postgresql_server_ip }}"
+    port: "{{ postgresql_port }}"
+    timeout: 30
+
+# ----------------------------------------------------
+#                  UFW Firewal
+# ----------------------------------------------------
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: postgresql_manage_firewall | bool
+- name: Allow SSH from lab network
+  community.general.ufw:
+    rule: allow
+    direction: in
+    proto: tcp
+    src: "{{ postgresql_ssh_allowed_network }}"
+    port: "22"
+    comment: "Allow SSH from lab network"
+  when: postgresql_manage_firewall | bool
+- name: Allow PostgreSQL only from management01
+  community.general.ufw:
+    rule: allow
+    direction: in
+    proto: tcp
+    src: "{{ postgresql_allowed_client_ip }}"
+    port: "{{ postgresql_port }}"
+    comment: "Allow PostgreSQL from management01"
+  when: postgresql_manage_firewall | bool
+- name: Set default incoming firewall policy
+  community.general.ufw:
+     direction: incoming
+     policy: deny
+  when: postgresql_manage_firewall | bool
+- name: Set default outgoing firewall policy
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  when: postgresql_manage_firewall | bool
+- name: Enable UFW firewall
+  community.general.ufw:
+    state: enabled
+    logging: low
+  when: postgresql_manage_firewall | bool
 
