@@ -1,0 +1,15 @@
+---
+# defaults file for database
+postgresql_packages:
+  - postgresql
+  - postgresql-contrib
+  - python3-psycopg2
+  - acl
+postgresql_service: postgresql
+
+postgresql_database_name: server_monitor
+postgresql_database_encoding: UTF8
+
+postgresql_app_user: server_monitor_app
+postgresql_app_password: "{{ vault_postgresql_app_password }}"
+
