@@ -1,0 +1,11 @@
+---
+# defaults file for webserver
+webserver_package: nginx
+webserver_service: nginx
+
+webserver_port: 80
+webserver_server_name: "_"
+
+webserver_site_name: server-monitor
+webserver_document_root: /var/www/server-monitor
+

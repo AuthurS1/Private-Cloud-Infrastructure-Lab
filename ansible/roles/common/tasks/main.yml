@@ -1,0 +1,38 @@
+---
+# tasks file for common
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+- name: Install common system packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+- name: Configure system timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+  notify: Restart cron
+- name: Ensure Chrony service is enabled and running
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+- name: Create lab operation directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ common_directories }}"
+- name: Create Ansible management marker
+  ansible.builtin.copy:
+    dest: /etc/ansible-managed
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      This server is managed by Ansible.
+      Inventory hostname: {{ inventory_hostname }}
+      Role: common
+

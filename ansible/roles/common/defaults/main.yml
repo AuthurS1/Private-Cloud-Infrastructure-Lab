@@ -1,0 +1,20 @@
+---
+# defaults file for common
+common_timezone: Asia/Ho_Chi_Minh
+
+common_packages:
+  - curl
+  - git
+  - vim
+  - htop
+  - tree
+  - jq
+  - unzip
+  - chrony
+  - cron
+common_directories:
+  - /opt/lab
+  - /opt/lab/scripts
+  - /opt/lab/backups
+  - /opt/log/lab
+
