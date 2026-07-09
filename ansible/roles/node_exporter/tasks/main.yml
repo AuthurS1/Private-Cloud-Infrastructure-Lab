@@ -1,0 +1,127 @@
+---
+# tasks file for node_exporter
+- name: Validate target CPU architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_architecture in node_exporter_architecture_map
+    fail_msg: >-
+      Unsupported architecture: {{ ansible_architecture }}.
+      Supported architecture: {{ node_exporter_architecture_map.keys() | list }}
+    success_msg: "Supported architecture detected: {{ ansible_architecture }}"
+- name: Set Node Exporter target architecture
+  ansible.builtin.set_fact:
+    node_exporter_target_arch: >-
+      {{ node_exporter_architecture_map[ansible_architecture] }}
+- name: Set Node Exporter artifact information
+  ansible.builtin.set_fact:
+    node_exporter_archive_name: >-
+      node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_target_arch }}.tar.gz
+    node_exporter_release_directory: >-
+      {{ node_exporter_install_root }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_target_arch }}
+- name: Set Node Exporter download URL
+  ansible.builtin.set_fact:
+    node_exporter_download_url: >-
+      https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_archive_name }}
+- name: Create Node Exporter system group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+    state: present
+- name: Create Node Exporter system user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+- name: Create Node Exporter installation directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_install_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Create Node Exporter textfile directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_textfile_directory }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0755"
+- name: Download Node Exporter archive
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_download_url }}"
+    dest: "/tmp/{{ node_exporter_archive_name }}"
+    checksum: "{{ node_exporter_checksum_map[node_exporter_target_arch] }}"
+    owner: root
+    group: root
+    mode: "0644"
+    timeout: 60
+- name: Extract Node Exporter archive
+  ansible.builtin.unarchive:
+    src: "/tmp/{{ node_exporter_archive_name }}"
+    dest: "{{ node_exporter_install_root }}"
+    remote_src: true
+    creates: "{{ node_exporter_release_directory }}/node_exporter"
+- name: Create Node Exporter binary symbolic link
+  ansible.builtin.file:
+    src: "/opt/node_exporter/node_exporter-1.11.1.linux-amd64/node_exporter"
+    dest: "/usr/local/bin/node_exporter"
+    state: link
+    force: true
+  notify: Restart node exporter
+- name: Deploy Node Exporter systemd service
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node exporter
+- name: Reload systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+- name: Install UFW package
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: node_exporter_manage_ufw_rule | bool
+- name: Allow Prometheus to access Node Exporter
+  community.general.ufw:
+    rule: allow
+    direction: in
+    proto: tcp
+    src: "{{ node_exporter_prometheus_source }}"
+    port: "{{ node_exporter_port }}"
+    comment: "Allow Prometheus Node Exporter scrape"
+  when: node_exporter_manage_ufw_rule | bool
+- name: Ensure Node Exporter is enable and running
+  ansible.builtin.systemd_service:
+    name: node_exporter.service
+    daemon_reload: true
+    enabled: true
+    state: started
+- name: Apply pending Node Exporter handlers
+  ansible.builtin.meta: flush_handlers
+- name: Wait for Node Exporter port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ node_exporter_port }}"
+    timeout: 30
+- name: Verify Node Exporter metrics endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: node_exporter_metrics_check
+- name: Display Node Exporter deployment information
+  ansible.builtin.debug:
+    msg:
+      - "Host: {{ inventory_hostname }}"
+      - "Version: {{ node_exporter_version }}"
+      - "Architecture: {{ node_exporter_target_arch }}"
+      - "Metrics endpoint: http://{{ ansible_host }}:{{ node_exporter_port }}/metrics"
+      - "HTTP status: {{ node_exporter_metrics_check.status }}"
+

@@ -1,0 +1,28 @@
+---
+# defaults file for node_exporter
+node_exporter_version: "1.11.1"
+
+node_exporter_user: node_exporter
+node_exporter_group: node_exporter
+
+node_exporter_port: "9100"
+node_exporter_listen_address: "0.0.0.0:9100"
+
+node_exporter_install_root: "/opt/node_exporter"
+node_exporter_binary_link: "/usr/local/bin/node_exporter"
+
+node_exporter_textfile_directory: /var/lib/node_exporter/textfile_collector
+
+node_exporter_architecture_map:
+  x86_64: amd64
+  aarch64: arm64
+node_exporter_checksum_map:
+  amd64: "sha256:9f5ea48e5bc7b656f8a91a32e7d7deb89f70f73dabd0d974418aca15f37d6810"
+  arm64: "sha256:ba1886efbd76cb96b0087c695ea8d1b9cb6e8aa946c996d744e9ee16c8e3591a"
+
+# Prometheus on management01 is the only host allowed to scrape port 9100
+node_exporter_prometheus_source: "192.168.122.149/32"
+
+# Add the UFW rule but do not enable UFW automatically
+node_exporter_manage_ufw_rule: true
+
