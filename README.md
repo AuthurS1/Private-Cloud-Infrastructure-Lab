@@ -4,7 +4,6 @@
 
 **Status:** Ongoing development  
 **Current repository name:** `server-monitor`  
-**Recommended project name for CV:** **Automated Cloud Infrastructure & Monitoring Lab**
 
 ---
 
