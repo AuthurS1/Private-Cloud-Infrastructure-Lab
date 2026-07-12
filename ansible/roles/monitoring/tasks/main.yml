@@ -1,0 +1,225 @@
+---
+# tasks file for monitoring
+- name: Verify Docker CLI is installed
+  ansible.builtin.command:
+    cmd: docker --version
+  changed_when: false
+
+- name: Verify Docker Compose plugin is installed
+  ansible.builtin.command:
+    cmd: docker compose version
+  changed_when: false
+
+- name: Ensure Docker service is enable and running
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create monitoring project directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0755"
+  loop:
+    - "{{ monitoring_project_dir }}"
+    - "{{ monitoring_project_dir }}/alertmanager"
+    - "{{ monitoring_project_dir }}/grafana"
+    - "{{ monitoring_project_dir }}/grafana/provisioning"
+    - "{{ monitoring_project_dir }}/grafana/provisioning/datasources"
+
+- name: Inspect monitoring configuration paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ monitoring_project_dir }}/prometheus.yml"
+    - "{{ monitoring_project_dir }}/alert.rules.yml"
+    - "{{ monitoring_project_dir }}/alertmanager/alertmanager.yml"
+    - "{{ monitoring_project_dir }}/grafana/provisioning/datasources/prometheus.yml"
+  register: monitoring_config_path_status
+
+- name: Remove configuration paths accidentally created as directories
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: absent
+  loop: "{{ monitoring_config_path_status.results }}"
+  when:
+    - item.stat.exists | default(false)
+    - item.stat.isdir | default(false)
+
+- name: Remove legacy misspelled alert rule path
+  ansible.builtin.file:
+    path: "{{ monitoring_project_dir }}/alert.rule.yml"
+    state: absent
+
+- name: Deploy Docker Compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ monitoring_project_dir }}/docker-compose.yml"
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Deployy Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ monitoring_project_dir }}/prometheus.yml"
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Deploy Prometheus alert rules
+  ansible.builtin.copy:
+    src: alert.rules.yml
+    dest: "{{ monitoring_project_dir }}/alert.rules.yml"
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Deploy Alertmanager configuration
+  ansible.builtin.template:
+    src: alertmanager/alertmanager.yml.j2
+    dest: "{{ monitoring_project_dir }}/alertmanager/alertmanager.yml"
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Provision Prometheus datasource in Grafana
+  ansible.builtin.template:
+    src: grafana/provisioning/datasources/prometheus.yml.j2
+    dest: "{{ monitoring_project_dir }}/grafana/provisioning/datasources/prometheus.yml"
+    owner: "{{ monitoring_owner }}"
+    group: "{{ monitoring_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Validate Prometheus configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --entrypoint
+      - /bin/promtool
+      - -v
+      - "{{ monitoring_project_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - -v
+      - "{{ monitoring_project_dir }}/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro"
+      - "{{ monitoring_prometheus_image }}"
+      - check
+      - config
+      - /etc/prometheus/prometheus.yml
+  changed_when: false
+
+- name: Validate Alertmanager configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --entrypoint
+      - /bin/amtool
+      - -v
+      - "{{ monitoring_project_dir }}/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
+      - "{{ monitoring_alertmanager_image }}"
+      - check-config
+      - /etc/alertmanager/alertmanager.yml
+  changed_when: false
+
+- name: Deploy monitoring stack with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_project_dir }}"
+    project_name: "{{ monitoring_project_name }}"
+    state: present
+    pull: missing
+    recreate: auto
+    remove_orphans: true
+  #  wait: true            DO VERSION CU~ NEN CHUA HO TRO 2 DONG NAY
+  #  wait_timeout: 120
+  register: monitoring_compose_result
+
+- name: Wait for Prometheus health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9090/prometheus/-/healthy"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: monitoring_prometheus_health
+  retries: 12
+  delay: 5
+  until: monitoring_prometheus_health.status == 200
+
+- name: Wait for Alertmanager health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9093/-/healthy"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: monitoring_alertmanager_health
+  retries: 12
+  delay: 5
+  until: monitoring_alertmanager_health.status == 200
+
+- name: Wait for Grafana health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:3000/api/health"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: monitoring_grafana_health
+  retries: 12
+  delay: 5
+  until: monitoring_grafana_health.status == 200
+
+- name: Verify local Node Exporter endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9100/metrics"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: monitoring_node_exporter_health
+  retries: 12
+  delay: 5
+  until: monitoring_node_exporter_health.status == 200
+
+- name: Wail until Prometheus discovers all expected targets
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9090/prometheus/api/v1/targets"
+    status_code: 200
+    return_content: true
+  register: monitoring_targets
+  retries: 12
+  delay: 5
+  until:
+    - monitoring_targets.json.data.activeTargets | length >= 5
+    - >-
+      (
+        monitoring_targets.json.data.activeTargets
+        | selectattr('health', 'equalto', 'up')
+        | list
+        | length
+      )
+      ==
+      (
+        monitoring_targets.json.data.activeTargets
+        | length
+      )
+
+- name: Display monitoring deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "Project directoryy: {{ monitoring_project_dir }}"
+      - "Prometheus: {{ monitoring_public_base_url }}/prometheus/"
+      - "Grafana: {{ monitoring_public_base_url }}/grafana/"
+      - "Alertmanager: {{ monitoring_public_base_url }}/alertmanager/"
+      - "Prometheus health: {{ monitoring_prometheus_health.status }}"
+      - "Grafana health: {{ monitoring_grafana_health.status }}"
+      - "Alertmanager health: {{ monitoring_alertmanager_health.status }}"
+      - "Active Prometheus targets: {{ monitoring_targets.json.data.activeTargets | length }}"
+

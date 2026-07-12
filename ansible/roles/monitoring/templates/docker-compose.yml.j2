@@ -1,0 +1,79 @@
+services:
+  node-exporter:
+    image: "{{ monitoring_node_exporter_image }}"
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+
+    command:
+      - "--path.rootfs=/host"
+
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+        bind:
+          propagation: rslave
+
+  prometheus:
+    image: "{{ monitoring_prometheus_image }}"
+    container_name: prometheus
+    restart: unless-stopped
+
+    ports:
+      - "9090:9090"
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time={{ monitoring_prometheus_retention }}"
+      - "--web.external-url={{ monitoring_public_base_url }}/prometheus/"
+      - "--web.route-prefix=/prometheus"
+
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro"
+      - "prometheus-storage:/prometheus"
+
+  grafana:
+    image: "{{ monitoring_grafana_image }}"
+    container_name: grafana
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      GF_SERVER_ROOT_URL: "{{ monitoring_public_base_url }}/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - "grafana-storage:/var/lib/grafana"
+      - "./grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro"
+  alertmanager:
+    image: "{{ monitoring_alertmanager_image }}"
+    container_name: alertmanager
+    restart: unless-stopped
+ 
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.external-url={{ monitoring_public_base_url }}/alertmanager/"
+      - "--web.route-prefix=/"
+
+    volumes:
+      - "./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
+      - "alertmanager-storage:/alertmanager"
+volumes:
+  grafana-storage:
+    name: monitoring_grafana-storage
+  prometheus-storage:
+    name: monitoring_prometheus-storage
+  alertmanager-storage:
+    name: monitoring_alertmanager-storage
+

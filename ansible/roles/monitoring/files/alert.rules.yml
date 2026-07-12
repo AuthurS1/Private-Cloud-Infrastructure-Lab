@@ -1,0 +1,61 @@
+groups:
+  - name: infrastructure-alerts
+    rules:
+      - alert: NodeDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severityy: critical
+        annotations:
+          summary: "Node is unavailable"
+          description: "{{ $labels.instance }} has been unreachable for more than 1 minutes."
+      - alert: HighCPUUsage
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_secconds_total{mode="idle"}[5m])
+            ) * 100
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summay: "High CPU usage"
+          description: "CPU usage on {{ $labels.instance }} is above 80%."
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 -
+            (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_Memtotal_bytes
+            )
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage on {{ $labels.instance }} is above 90%."
+      - alert: HighDiskUsage
+        expr: |
+          100 * (
+            1 -
+            (
+              node_filesystem_avail_bytes{
+                fstype!~"tmpfs|overlay|squashfs"
+              }
+              /
+              node_filesystem_size_bytes{
+                fstype!~"tmpfs|overlay|squashfs"
+              }
+            )
+          ) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage on {{ $labels.instance }} mount {{ $labels.moutpoint }} is above 90%."
+

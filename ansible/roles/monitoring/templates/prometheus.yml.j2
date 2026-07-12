@@ -1,0 +1,56 @@
+global:
+  scrape_interval: "{{ monitoring_scrape_interval }}"
+  evaluation_interval: "{{ monitoring_evaluation_interval }}"
+
+  external_labels:
+    environment: "home-lab"
+    monitoring_server: "management01"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+rule_files:
+  - "/etc/prometheus/alert.rules.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    metrics_path: /prometheus/metrics
+    static_configs:
+      - targets:
+          - "prometheus:9090"
+
+  - job_name: "management01"
+    static_configs:
+      - targets:
+          - "{{ monitoring_management_ip }}:9100"
+        labels:
+          role: "management01"
+          managed_by: "docker-compose"
+
+  - job_name: "hypervisor"
+    static_configs:
+      - targets:
+          - "{{ monitoring_hypervisor_ip }}:9100"
+        labels:
+          role: "hypervisor"
+
+  - job_name: "webserver"
+    static_configs:
+      - targets:
+          - "{{ monitoring_webserver_ip }}:9100"
+        labels:
+          role: "webserver"
+          managed_by: "ansible"
+
+  - job_name: "database"
+    static_configs:
+      - targets:
+          - "{{ monitoring_database_ip }}:9100"
+        labels:
+          role: "database"
+          managed_by: "ansible"
+
+ 

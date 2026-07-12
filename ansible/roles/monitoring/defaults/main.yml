@@ -1,0 +1,25 @@
+---
+# defaults file for monitoring
+monitoring_owner: hoangan1606
+monitoring_group: hoangan1606
+
+monitoring_project_name: monitoring
+monitoring_project_dir: /opt/server-monitor/monitoring
+
+monitoring_public_base_url: "http://192.168.137.130"
+
+monitoring_prometheus_image: "prom/prometheus:v3.13.0"
+monitoring_alertmanager_image: "prom/alertmanager:v0.33.1"
+monitoring_node_exporter_image: "prom/node-exporter:v1.11.1"
+monitoring_grafana_image: "grafana/grafana:13.1.0"
+
+monitoring_prometheus_retention: "15d"
+
+monitoring_management_ip: "192.168.122.149"
+monitoring_hypervisor_ip: "192.168.137.130"
+monitoring_webserver_ip: "192.168.122.26"
+monitoring_database_ip: "192.168.122.223"
+
+monitoring_scrape_interval: "15s"
+monitoring_evaluation_interval: "15s"
+
