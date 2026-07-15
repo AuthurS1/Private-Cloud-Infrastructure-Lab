@@ -10,13 +10,12 @@ server {
     access_log /var/log/nginx/{{ webserver_site_name }}_access.log;
     error_log /var/log/nginx/{{ webserver_site_name }}_error.log;
 
-    location / {
-        try_files $uri $uri/ =404;
-    }
-
-    location = /heath {
+    location = /health {
         access_log off;
         default_type text/plain;
         return 200 "healthy\n";
+    }
+    location / {
+        try_files $uri $uri/ =404;
     }
 }

@@ -1,0 +1,160 @@
+---
+# ==============================================
+#            1. Common Linux baseline
+# ==============================================
+- name: Apply common Linux baseline
+  hosts: monitored_nodes
+  become: true
+  gather_facts: true
+  force_handlers: true
+
+  tags:
+    - common
+
+  roles:
+    - role: common
+
+
+# ===============================================
+#            2. Nginx web server
+# ===============================================
+- name: Configure Nginx web servers
+  hosts: webservers
+  become: true
+  gather_facts: true
+  force_handlers: true
+
+  tags:
+    - webserver
+
+  roles:
+    - role: webserver
+
+# ================================================
+#             3. PostgreSQL database
+# ================================================
+- name: Configure PostgreSQL database servers
+  hosts: databases
+  become: true
+  gather_facts: true
+  force_handlers: true
+
+  tags:
+    - database
+
+  roles:
+    - role: database
+
+# ================================================
+#       4. Node Exporter monitoring agents
+# ================================================
+- name: Deploy Node Exporter agents
+  hosts: node_exporters
+  become: true
+  gather_facts: true
+  force_handlers: true
+
+  tags:
+    - node_exporter
+
+  roles:
+    - role: node_exporter
+
+# =================================================
+#      5. Centralized monitoring stack
+# =================================================
+- name: Deploy centralized monitoring stack
+  hosts: management
+  become: true
+  gather_facts: true
+  force_handlers: true
+
+  tags:
+    - monitoring
+
+  roles:
+    - role: monitoring
+
+# =================================================
+#         6. Final service verification
+# =================================================
+- name: Verify complete infrastructure deployment
+  hosts: management
+  become: false
+  gather_facts: false
+
+  vars:
+    prometheus_internal_url: "http://127.0.0.1:9090/prometheus"
+
+  tags:
+    - verify
+
+  tasks:
+    - name: Verify Nginx webserver health endpoint
+      ansible.builtin.uri:
+        url: "http://192.168.122.26/health"
+        method: GET
+        status_code: 200
+        return_content: true
+      register: site_webserver_health
+    - name: Verify PostgreSQL port from management01
+      ansible.builtin.wait_for:
+        host: "192.168.122.223"
+        port: 5432
+        connect_timeout: 5
+        timeout: 10
+    - name: Verify Prometheus health endpoint
+      ansible.builtin.uri:
+        url: "{{ prometheus_internal_url }}/-/healthy"
+        method: GET
+        status_code: 200
+      register: site_prometheus_health
+    - name: Verify Grafana health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:3000/api/health"
+        method: GET
+        status_code: 200
+      register: site_grafana_health
+    - name: Verify Alertmanager health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:9093/-/healthy"
+        method: GET
+        status_code: 200
+      register: site_alertmanager_health
+    - name: Read Prometheus active targets
+      ansible.builtin.uri:
+        url: "{{ prometheus_internal_url }}/api/v1/targets"
+        method: GET
+        status_code: 200
+        return_content: true
+      register: site_prometheus_targets
+    - name: Ensure all Prometheus targets are healthy
+      ansible.builtin.assert:
+        that:
+          - site_prometheus_targets.json.status == "success"
+          - site_prometheus_targets.json.data.activeTargets | length >= 5
+          - >-
+            (
+              site_prometheus_targets.json.data.activeTargets
+              | selectattr('health', 'equalto', 'up')
+              | list
+              | length
+            )
+            ==
+            (
+              site_prometheus_targets.json.data.activeTargets
+              | length
+            )
+        fail_msg: "One or more Prometheus targets are DOWN."
+        success_msg: "All Prometheus targets are UP."
+    - name: Display final infrastructure summary
+      ansible.builtin.debug:
+        msg:
+          - "Webserver health: HTTP {{site_webserver_health.status }}"
+          - "PostgreSQL: reachable from management01 on port 5432"
+          - "Prometheus health: HTTP {{ site_prometheus_health.status }}"
+          - "Grafana health: HTTP {{ site_grafana_health.status }}"
+          - "Alertmanager health: HTTP {{ site_alertmanager_health.status }}"
+          - "Active Prometheus targets: {{ site_prometheus_targets.json.data.activeTargets | length }}"
+          - "Infrastructure deployment completed successfully."
+

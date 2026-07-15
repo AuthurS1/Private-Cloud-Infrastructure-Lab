@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BACKUP_DIR="{{ postgres_backup_dir }}"
+DB_NAME="{{ postgres_backup_database }}"
+TEST_DB="{{ postgres_restore_test_database }}"
+
+LATEST_BACKUP="$(ls -1t "${BACKUP_DIR}/${DB_NAME}-"*.dump | head -n 1)"
+
+if [ -z "${LATEST_BACKUP}" ]; then
+  echo "No backup file found."
+  exit 1
+fi
+
+echo "Using backup: ${LATEST_BACKUP}"
+
+dropdb --if-exists "${TEST_DB}"
+createdb "${TEST_DB}"
+
+pg_restore \
+  -d "${TEST_DB}" \
+  "${LATEST_BACKUP}"
+
+psql \
+  -d "${TEST_DB}" \
+  -tAc "SELECT current_database();"
+
+dropdb "${TEST_DB}"
+
+echo "Restore test passed."
+

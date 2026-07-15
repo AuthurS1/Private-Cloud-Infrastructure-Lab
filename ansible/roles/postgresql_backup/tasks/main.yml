@@ -1,0 +1,62 @@
+---
+# tasks file for postgresql_backup
+- name: Ensure PostgreSQL backup directory exists
+  ansible.builtin.file:
+    path: "{{ postgres_backup_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Ensure lab log directory exists
+  ansible.builtin.file:
+    path: /var/log/lab
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Ensure backup log file exists
+  ansible.builtin.file:
+    path: /var/log/lab/postgresql-backup.log
+    state: touch
+    owner: postgres
+    group: postgres
+    mode: "0640"
+
+- name: Deploy PostgreSQL backup script
+  ansible.builtin.template:
+    src: postgres_backup.sh.j2
+    dest: "{{ postgres_backup_script_path }}"
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Deploy PostgreSQL restore test script
+  ansible.builtin.template:
+    src: postgres_restore_test.sh.j2
+    dest: "{{ postgres_restore_test_script_path }}"
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Create daily PostgreSQL backup cron job
+  ansible.builtin.cron:
+    name: "Backup PostgreSQL server_monitor database"
+    user: postgres
+    minute: "{{ postgres_backup_cron_minute }}"
+    hour: "{{ postgres_backup_cron_hour }}"
+    job: "{{ postgres_backup_script_path }} >> /var/log/lab/postgresql-backup.log 2>&1"
+    state: present
+  when: postgres_backup_cron_enabled | bool
+
+- name: Run PostgreSQL backup once
+  become_user: postgres
+  ansible.builtin.command:
+    cmd: "{{ postgres_backup_script_path }}"
+  register: postgres_backup_result
+  changed_when: "'Backup created:' in postgres_backup_result.stdout"
+
+- name: Display PostgreSQL backup result
+  ansible.builtin.debug:
+    var: postgres_backup_result.stdout_lines

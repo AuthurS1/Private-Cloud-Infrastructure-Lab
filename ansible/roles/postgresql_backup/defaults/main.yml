@@ -1,0 +1,14 @@
+---
+# defaults file for postgresql_backup
+postgres_backup_database: server_monitor
+postgres_backup_dir: /opt/lab/backups/postgresql
+postgres_backup_retention_days: 7
+
+postgres_backup_script_path: /usr/local/sbin/postgres_backup.sh
+postgres_restore_test_script_path: /usr/local/sbin/postgres_restore_test.sh
+
+postgres_restore_test_database: server_monitor_restore_test
+
+postgres_backup_cron_enabled: true
+postgres_backup_cron_minute: "0"
+postgres_backup_cron_hour: "2"

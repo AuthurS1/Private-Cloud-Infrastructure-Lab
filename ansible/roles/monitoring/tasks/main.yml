@@ -151,20 +151,23 @@
     status_code: 200
     return_content: false
   register: monitoring_prometheus_health
-  retries: 12
+  changed_when: false
+  check_mode: false
+  retries: 10
   delay: 5
-  until: monitoring_prometheus_health.status == 200
+  until: monitoring_prometheus_health is succeeded
 
 - name: Wait for Alertmanager health endpoint
   ansible.builtin.uri:
     url: "http://127.0.0.1:9093/-/healthy"
     method: GET
     status_code: 200
-    return_content: false
   register: monitoring_alertmanager_health
-  retries: 12
+  changed_when: false
+  check_mode: false
+  retries: 10
   delay: 5
-  until: monitoring_alertmanager_health.status == 200
+  until: monitoring_alertmanager_health is succeeded
 
 - name: Wait for Grafana health endpoint
   ansible.builtin.uri:
@@ -175,7 +178,7 @@
   register: monitoring_grafana_health
   retries: 12
   delay: 5
-  until: monitoring_grafana_health.status == 200
+  until: monitoring_grafana_health is succeeded
 
 - name: Verify local Node Exporter endpoint
   ansible.builtin.uri:
@@ -186,28 +189,51 @@
   register: monitoring_node_exporter_health
   retries: 12
   delay: 5
-  until: monitoring_node_exporter_health.status == 200
+  until: monitoring_node_exporter_health is succeeded
 
 - name: Wail until Prometheus discovers all expected targets
   ansible.builtin.uri:
     url: "http://127.0.0.1:9090/prometheus/api/v1/targets"
+    method: GET
     status_code: 200
     return_content: true
   register: monitoring_targets
+  changed_when: false
+  check_mode: false
   retries: 12
   delay: 5
   until:
-    - monitoring_targets.json.data.activeTargets | length >= 5
     - >-
       (
-        monitoring_targets.json.data.activeTargets
+        monitoring_targets.json
+        | default({})
+      ).get('status', '') == 'success'
+
+    - >-
+      (
+        (
+          monitoring_targets.json
+          | default({})
+        ).get('data', {}).get('activeTargets', [])
+        | length
+      ) >= 5
+
+    - >-
+      (
+        (
+          monitoring_targets.json
+          | default({})
+        ).get('data', {}).get('activeTargets', [])
         | selectattr('health', 'equalto', 'up')
         | list
         | length
       )
       ==
       (
-        monitoring_targets.json.data.activeTargets
+        (
+          monitoring_targets.json
+          | default({})
+        ).get('data', {}).get('activeTargets', [])
         | length
       )
 
@@ -218,8 +244,9 @@
       - "Prometheus: {{ monitoring_public_base_url }}/prometheus/"
       - "Grafana: {{ monitoring_public_base_url }}/grafana/"
       - "Alertmanager: {{ monitoring_public_base_url }}/alertmanager/"
-      - "Prometheus health: {{ monitoring_prometheus_health.status }}"
-      - "Grafana health: {{ monitoring_grafana_health.status }}"
-      - "Alertmanager health: {{ monitoring_alertmanager_health.status }}"
+      - "Prometheus health: HTTP {{ monitoring_prometheus_health.status | default('unknown') }}"
+      - "Grafana health: HTTP {{ monitoring_grafana_health.status | default('unknown') }}"
+      - "Alertmanager health: HTTP {{ monitoring_alertmanager_health.status | default('unknown') }}"
+      - "Node Exporter health: HTTP {{ monitoring_node_exporter_health.status | default('unknown') }}"
       - "Active Prometheus targets: {{ monitoring_targets.json.data.activeTargets | length }}"
 

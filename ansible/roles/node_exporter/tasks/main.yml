@@ -116,6 +116,19 @@
     status_code: 200
     return_content: false
   register: node_exporter_metrics_check
+  changed_when: false
+  check_mode: false
+- name: Ensure Node Exporter metrics endpoint returned HTTP 200
+  ansible.builtin.assert:
+    that:
+      - node_exporter_metrics_check is defined
+      - not (node_exporter_metrics_check.skipped | default(false))
+      - node_exporter_metrics_check.status | default(0) == 200
+    fail_msg: >-
+      Node Exporter metrics verification failed on {{ inventory_hostname }}.
+      Result: {{ node_exporter_metrics_check | default({}) }}
+    success_msg: >-
+      Node Exporter metrics endpoint is healthy on {{ inventory_hostname }}.
 - name: Display Node Exporter deployment information
   ansible.builtin.debug:
     msg:
@@ -123,5 +136,7 @@
       - "Version: {{ node_exporter_version }}"
       - "Architecture: {{ node_exporter_target_arch }}"
       - "Metrics endpoint: http://{{ ansible_host }}:{{ node_exporter_port }}/metrics"
-      - "HTTP status: {{ node_exporter_metrics_check.status }}"
+      - >-
+        HTTP status:
+        {{ node_exporter_metrics_check.status }} | default({})).get('status', 'unknown') }}
 

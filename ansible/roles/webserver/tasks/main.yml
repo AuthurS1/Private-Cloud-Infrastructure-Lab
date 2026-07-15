@@ -15,6 +15,15 @@
     mode: "0755"
 - name: Deploy web homepage
   ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ webserver_document_root }}/index.html"
+    owner: www-data
+    group: www-data
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+- name: Deploy Nginx virtual host
+  ansible.builtin.template:
     src: nginx-site.conf.j2
     dest: "/etc/nginx/sites-available/{{ webserver_site_name }}.conf"
     owner: root
